@@ -1,24 +1,29 @@
 type Consistant = boolean & { __consistant: 'brand' }
 type Quiz = Question[]
-type Responses = boolean[]
+type Response = boolean
 
 function consistant(value: boolean): Consistant {
     return value as Consistant
+}
+interface ResultSet {
+    allLocallyConsistant: boolean,
+    results: Array<readonly [locallyConsistant: Consistant, response: boolean]>
 }
 
 interface Question {
     name: string
     locallyConsistant?: (localContext: {
         idx: number,
-        allResponses: Responses,
-        response: boolean,
+        allResponses: Response[],
+        response: Response,
         quiz: Quiz
     }) => Consistant
     globallyConsistant?: (globalContext: {
-        idx: number
-        quiz: Quiz
-        responseSet: Array<readonly [locallyConsistant: Consistant, response: boolean]>
-        responseSets: Array<readonly [locallyConsistant: Consistant, response: boolean]>[]
+        idx: number,
+        quiz: Quiz,
+        response: Response,
+        resultSet: ResultSet,
+        resultSets: ResultSet[]
     }) => Consistant
 }
 
@@ -35,7 +40,7 @@ function product<T>(arrs: T[][]): T[][] {
 }
 
 function solveQuiz(quiz: Quiz) {
-    const responseSets = product(quiz.map(_ => [true, false])).map(
+    const resultSets = product(quiz.map(_ => [true, false])).map(
         responses => {
             const results = responses.map((response, idx) => {
                 const question = quiz[idx];
@@ -47,26 +52,26 @@ function solveQuiz(quiz: Quiz) {
                 })
                 return [locallyConsistant, response] as const
             })
-            const allConsistant = results.reduce((acc, [conistant]) => acc && conistant, true)
+            const allLocallyConsistant = results.reduce((acc, [consistant]) => acc && consistant, true)
             return {
-                allConsistant,
-                rawResults: results
+                allLocallyConsistant,
+                results
             }
         }
     )
 
-    const allRawResults = responseSets.map(({ rawResults }) => rawResults)
-
-    return responseSets.filter(({ allConsistant }) => allConsistant).filter(({ rawResults }) =>
-        quiz.reduce((acc, question, idx) =>
-            acc && (question.globallyConsistant || (() => consistant(true)))({
+    return resultSets.filter(({ allLocallyConsistant }) => allLocallyConsistant).filter(resultSet =>
+        resultSet.results.reduce((acc, [, response], idx) => {
+            const question = quiz[idx];
+            return acc && (question.globallyConsistant || (() => consistant(true)))({
                 idx,
                 quiz,
-                responseSets: allRawResults,
-                responseSet: rawResults
+                resultSets,
+                resultSet,
+                response
             })
-            , true as boolean)
-    ).map(({ rawResults }) => rawResults.map(([, response]) => response))
+        }, true as boolean)
+    ).map(({ results }) => results.map(([, response]) => response))
 }
 
 const alwaysConsistant: Question = {
@@ -185,8 +190,8 @@ const othersAreSame: Question = {
     name: 'othersAreSame',
 
     locallyConsistant({ idx, response, allResponses }) {
-        const othersTrue = allResponses.filter((_, i) => i != idx).reduce((acc, res) => acc && res, true)
-        const othersFalse = allResponses.filter((_, i) => i != idx).reduce((acc, res) => acc && !res, true)
+        const othersTrue = allResponses.filter((_, i) => i !== idx).reduce((acc, res) => acc && res, true)
+        const othersFalse = allResponses.filter((_, i) => i !== idx).reduce((acc, res) => acc && !res, true)
         return consistant(response === (othersTrue || othersFalse))
     }
 }
@@ -195,7 +200,7 @@ const othersAreTrue: Question = {
     name: 'othersAreTrue',
 
     locallyConsistant({ idx, response, allResponses }) {
-        const expected = allResponses.filter((_, i) => i != idx).reduce((acc, res) => acc && res, true)
+        const expected = allResponses.filter((_, i) => i !== idx).reduce((acc, res) => acc && res, true)
         return consistant(response === expected)
     }
 }
@@ -204,7 +209,7 @@ const othersAreFalse: Question = {
     name: 'othersAreFalse',
 
     locallyConsistant({ idx, response, allResponses }) {
-        const expected = allResponses.filter((_, i) => i != idx).reduce((acc, res) => acc && !res, true)
+        const expected = allResponses.filter((_, i) => i !== idx).reduce((acc, res) => acc && !res, true)
         return consistant(response === expected)
     }
 }
@@ -219,12 +224,32 @@ function numQuestionsIs(n: number): Question {
     }
 }
 
-const solutionSetIsUnique: Question = { name: 'solutionSetIsUnique' /* TODO later */ }
+const solutionSetIsUnique: Question = {
+    name: 'solutionSetIsUnique',
+
+    globallyConsistant({ idx, response, resultSets }) {
+        const consistantResultSets = resultSets.filter(({ allLocallyConsistant }) => allLocallyConsistant)
+        const guessedTrueResultSets = consistantResultSets.filter(({ results }) => results[idx][1])
+        const guessedFalseResultSets = consistantResultSets.filter(({ results }) => !results[idx][1])
+        return consistant(response ? guessedTrueResultSets.length === 1 : guessedFalseResultSets.length > 1)
+    }
+}
+
+const solutionSetIsNotUnique: Question = {
+    name: 'solutionSetIsNotUnique',
+
+    globallyConsistant({ idx, response, resultSets }) {
+        const consistantResultSets = resultSets.filter(({ allLocallyConsistant }) => allLocallyConsistant)
+        const guessedTrueResultSets = consistantResultSets.filter(({ results }) => results[idx][1])
+        const guessedFalseResultSets = consistantResultSets.filter(({ results }) => !results[idx][1])
+        return consistant(response ? guessedTrueResultSets.length > 1 : guessedFalseResultSets.length === 1)
+    }
+}
 
 // // @ts-expect-error
-// console.log(solveQuiz([alwaysConsistant, alwaysConsistant, othersAreSame, numQuestionsIs(4)]))
+// console.log(solveQuiz([numQuestionsIs(5), alwaysConsistant, othersAreSame, evenNumberAreTrue, solutionSetIsUnique]))
 
 product([[alwaysConsistant], [adjacentAreSame, adjacentAreTrue, adjacentAreFalse], [evenNumberAreFalse, oddNumberAreFalse, oddNumberAreTrue, evenNumberAreTrue], [allAreSame, allAreTrue, allAreFalse, othersAreSame, othersAreTrue, othersAreFalse], [numQuestionsIs(5), numQuestionsIs(6)], [solutionSetIsUnique]]).forEach(quiz => {
     // @ts-expect-error
     console.log(`${quiz.map(q => q.name).join(', ')}:\n-${solveQuiz(quiz).join('\n-')}`)
-})
+}) 
