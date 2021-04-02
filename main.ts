@@ -71,6 +71,7 @@ function solveQuiz(quiz: Quiz) {
 
 const alwaysConsistant: Question = {
     name: 'alwaysConsistant',
+
     locallyConsistant() {
         return consistant(true)
     }
@@ -78,13 +79,23 @@ const alwaysConsistant: Question = {
 
 const responseIsTrue: Question = {
     name: 'responseIsTrue',
+
     locallyConsistant({ response }) {
         return consistant(response)
     }
 }
 
+const responseIsFalse: Question = {
+    name: 'responseIsFalse',
+
+    locallyConsistant({ response }) {
+        return consistant(!response)
+    }
+}
+
 const adjacentAreSame: Question = {
     name: 'adjacentAreSame',
+
     locallyConsistant({ idx, response, allResponses }) {
         return consistant(response === (allResponses[idx - 1] === allResponses[idx + 1]))
     }
@@ -92,13 +103,22 @@ const adjacentAreSame: Question = {
 
 const adjacentAreTrue: Question = {
     name: 'adjacentAreTrue',
+
     locallyConsistant({ idx, response, allResponses }) {
         return consistant(response === (allResponses[idx - 1] && allResponses[idx + 1]))
     }
 }
 
+const adjacentAreFalse: Question = {
+    name: 'adjacentAreFalse',
+
+    locallyConsistant({ idx, response, allResponses }) {
+        return consistant(response === (!allResponses[idx - 1] && !allResponses[idx + 1]))
+    }
+}
+
 const oddNumberAreTrue: Question = {
-    name: 'adjacentAreSame',
+    name: 'oddNumberAreTrue',
 
     locallyConsistant({ response, allResponses }) {
         const expected = allResponses.filter(each => each).length % 2 === 1
@@ -133,12 +153,78 @@ const evenNumberAreFalse: Question = {
     }
 }
 
+const allAreSame: Question = {
+    name: 'allAreSame',
+
+    locallyConsistant({ response, allResponses }) {
+        const allTrue = allResponses.reduce((acc, res) => acc && res, true)
+        const allFalse = allResponses.reduce((acc, res) => acc && !res, true)
+        return consistant(response === (allTrue || allFalse))
+    }
+}
+
+const allAreTrue: Question = {
+    name: 'allAreTrue',
+
+    locallyConsistant({ response, allResponses }) {
+        const expected = allResponses.reduce((acc, res) => acc && res, true)
+        return consistant(response === expected)
+    }
+}
+
+const allAreFalse: Question = {
+    name: 'allAreFalse',
+
+    locallyConsistant({ response, allResponses }) {
+        const expected = allResponses.reduce((acc, res) => acc && !res, true)
+        return consistant(response === expected)
+    }
+}
+
+const othersAreSame: Question = {
+    name: 'othersAreSame',
+
+    locallyConsistant({ idx, response, allResponses }) {
+        const othersTrue = allResponses.filter((_, i) => i != idx).reduce((acc, res) => acc && res, true)
+        const othersFalse = allResponses.filter((_, i) => i != idx).reduce((acc, res) => acc && !res, true)
+        return consistant(response === (othersTrue || othersFalse))
+    }
+}
+
+const othersAreTrue: Question = {
+    name: 'othersAreTrue',
+
+    locallyConsistant({ idx, response, allResponses }) {
+        const expected = allResponses.filter((_, i) => i != idx).reduce((acc, res) => acc && res, true)
+        return consistant(response === expected)
+    }
+}
+
+const othersAreFalse: Question = {
+    name: 'othersAreFalse',
+
+    locallyConsistant({ idx, response, allResponses }) {
+        const expected = allResponses.filter((_, i) => i != idx).reduce((acc, res) => acc && !res, true)
+        return consistant(response === expected)
+    }
+}
+
+function numQuestionsIs(n: number): Question {
+    return {
+        name: `numQuestionsIs${n}`,
+
+        locallyConsistant({ response, allResponses }) {
+            return consistant(response === (n === allResponses.length))
+        }
+    }
+}
+
 const solutionSetIsUnique: Question = { name: 'solutionSetIsUnique' /* TODO later */ }
 
 // // @ts-expect-error
-// console.log(solveQuiz([alwaysConsistant, adjacentAreSame, evenNumberAreFalse, solutionSetIsUnique]))
+// console.log(solveQuiz([alwaysConsistant, alwaysConsistant, othersAreSame, numQuestionsIs(4)]))
 
-product([[alwaysConsistant], [adjacentAreSame, adjacentAreTrue], [evenNumberAreFalse, oddNumberAreFalse, oddNumberAreTrue, evenNumberAreTrue], [solutionSetIsUnique]]).forEach(quiz => {
+product([[alwaysConsistant], [adjacentAreSame, adjacentAreTrue, adjacentAreFalse], [evenNumberAreFalse, oddNumberAreFalse, oddNumberAreTrue, evenNumberAreTrue], [allAreSame, allAreTrue, allAreFalse, othersAreSame, othersAreTrue, othersAreFalse], [numQuestionsIs(5), numQuestionsIs(6)], [solutionSetIsUnique]]).forEach(quiz => {
     // @ts-expect-error
     console.log(`${quiz.map(q => q.name).join(', ')}:\n-${solveQuiz(quiz).join('\n-')}`)
 })
