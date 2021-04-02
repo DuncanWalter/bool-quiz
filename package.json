@@ -1,0 +1,10 @@
+{
+  "dependencies": {
+    "prettier": "^2.2.1",
+    "typescript": "^4.2.3"
+  },
+  "scripts": {
+    "build": "tsc -p ./tsconfig.json",
+    "build-and-run": "tsc -p ./tsconfig.json && node main.js"
+  }
+}
